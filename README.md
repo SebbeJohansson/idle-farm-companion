@@ -28,17 +28,15 @@ Settings go in a `.env` file next to `compose.yaml` (see `.env.example`).
 
 ### Docker in WSL
 
-Docker Engine installed directly in the WSL distro, started by systemd:
+Docker Desktop with its WSL integration turned on for this distro
+(Settings → Resources → WSL integration → your distro → Apply & restart).
+The container runs in Docker Desktop's VM, and its published port shows up
+on WSL's `localhost`. Also turn on Settings → General → "Start Docker
+Desktop when you sign in": `restart: unless-stopped` only brings Laya back
+once Docker itself is running.
 
-```bash
-curl -fsSL https://get.docker.com | sh
-sudo usermod -aG docker $USER      # then open a new terminal
-sudo systemctl enable --now docker
-```
-
-Laya then runs whenever WSL is running. If Docker Desktop is also installed
-on Windows, keep its WSL integration for this distro turned off so the two
-don't fight over the `docker` command.
+Don't run `docker compose` from PowerShell instead: the port would land on
+Windows' loopback, which WSL can't reach.
 
 ## Ollama (Windows)
 
