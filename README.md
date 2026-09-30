@@ -7,7 +7,7 @@ checks) grows out of it later.
 
 | Service | Role | Runs | Address (from WSL) |
 | --- | --- | --- | --- |
-| [Laya](https://github.com/NandhaKishorM/laya) | Decides: scores generated biomes (fits its mood? cozy? safe?) | Docker, in WSL, CPU | `http://localhost:8000` |
+| [Laya](https://github.com/NandhaKishorM/laya) | Decides: scores generated biomes (fits its mood? cozy? safe?) | Docker Desktop via WSL, CPU | `http://localhost:8000` |
 | [Ollama](https://ollama.com) + Gemma 4 | Writes: generates biome JSON | Natively on Windows, GPU | `http://<windows host>:11434` |
 
 ## Laya
