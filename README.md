@@ -1,6 +1,6 @@
-# idle-game-companion
+# idle-farm-companion
 
-The local AI services behind idle-game's digger: the content it generates
+The local AI services behind [Idle Farm](https://github.com/SebbeJohansson/idle-farm)'s digger: the content it generates
 and the checks that content has to pass. For now this is a development
 setup; the plan's player-facing companion (one port, installer, health
 checks) grows out of it later.
