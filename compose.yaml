@@ -4,9 +4,9 @@
 #   docker compose logs -f laya     # watch it
 #   docker compose down             # stop (downloaded weights are kept)
 #
-# Laya judges generated content (it decides, it doesn't write). Ollama, which
-# writes it, runs natively on the Windows host instead of in here — see
-# README.md.
+# Laya judges generated content (it decides, it doesn't write); `art` draws
+# sprites for it. Ollama, which writes the text, runs natively on the
+# Windows host instead of in here — see README.md.
 
 services:
   laya:
@@ -51,5 +51,52 @@ services:
       start_period: 10m
       start_interval: 2s
 
+  # Fetches the image model into its volume on first start; later starts
+  # find it there and exit at once.
+  art-models:
+    image: curlimages/curl:8.11.1
+    user: root
+    entrypoint: ["sh", "-c"]
+    command:
+      - |
+        set -e
+        if [ -s "/models/$$ART_MODEL_FILE" ]; then echo "model present: $$ART_MODEL_FILE"; exit 0; fi
+        echo "downloading $$ART_MODEL_URL"
+        curl -fL --retry 3 -o "/models/$$ART_MODEL_FILE.part" "$$ART_MODEL_URL"
+        mv "/models/$$ART_MODEL_FILE.part" "/models/$$ART_MODEL_FILE"
+    environment:
+      ART_MODEL_URL: ${ART_MODEL_URL:-https://huggingface.co/PublicPrompts/All-In-One-Pixel-Model/resolve/main/Public-Prompts-Pixel-Model.ckpt}
+      ART_MODEL_FILE: ${ART_MODEL_FILE:-Public-Prompts-Pixel-Model.ckpt}
+    volumes:
+      - art-models:/models
+
+  # stable-diffusion.cpp's server on the GPU. Not ComfyUI: current PyTorch
+  # builds dropped Pascal GPUs (GTX 10-series), and this is built on ggml
+  # like Ollama, which runs on them fine. Speaks the Automatic1111 API at
+  # /sdapi/v1/txt2img.
+  art:
+    # Upstream only publishes `master-*` tags, so the digest is the pin.
+    # Swap `-cuda` for `-vulkan` if CUDA doesn't work on a GPU.
+    image: ghcr.io/leejet/stable-diffusion.cpp:master-cuda@sha256:bc12de387c5def38f4bb826912d8c8a1d3d7c7c2cb2ccbe2423280aa50a0a636
+    entrypoint: ["/sd-server"]
+    command: ["-m", "/models/${ART_MODEL_FILE:-Public-Prompts-Pixel-Model.ckpt}", "-l", "0.0.0.0", "--listen-port", "7860"]
+    ports:
+      - "127.0.0.1:${ART_PORT:-7860}:7860"
+    volumes:
+      - art-models:/models
+    depends_on:
+      art-models:
+        condition: service_completed_successfully
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    init: true
+    restart: unless-stopped
+
 volumes:
   laya-models:
+  art-models:
