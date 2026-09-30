@@ -1,0 +1,55 @@
+# Local AI services for idle-game's digger (see idle-game's digger-plan.md).
+#
+#   docker compose up -d --wait     # start, and wait until healthy
+#   docker compose logs -f laya     # watch it
+#   docker compose down             # stop (downloaded weights are kept)
+#
+# Laya judges generated content (it decides, it doesn't write). Ollama, which
+# writes it, runs natively on the Windows host instead of in here — see
+# README.md.
+
+services:
+  laya:
+    # Built straight from Laya's repository at a pinned release, so this repo
+    # carries no copy of their code. Bump the tag deliberately.
+    build:
+      context: https://github.com/NandhaKishorM/laya.git#${LAYA_VERSION:-v0.3.22}
+      args:
+        TORCH_INDEX: cpu
+    image: idle-game-companion/laya:${LAYA_VERSION:-v0.3.22}
+    command: ["laya-serve"]
+    ports:
+      # Loopback only: the API has no authentication unless LAYA_API_KEY is
+      # set. The game's dev server and scripts run in WSL and reach it here.
+      - "127.0.0.1:${LAYA_PORT:-8000}:${LAYA_PORT:-8000}"
+    environment:
+      LAYA_HOST: 0.0.0.0
+      LAYA_PORT: ${LAYA_PORT:-8000}
+      # CPU on purpose: Laya is small and fast enough there, and the GPU stays
+      # free for the LLM (and later image generation).
+      LAYA_DEVICE: cpu
+      # Biome text is English; skipping the multilingual and typed-decisions
+      # checkpoints saves most of the memory and download.
+      LAYA_MODELS: english
+      LAYA_PRELOAD: 1
+      LAYA_THREADS: ${LAYA_THREADS:-4}
+      OMP_NUM_THREADS: ${LAYA_THREADS:-4}
+      LAYA_API_KEY: ${LAYA_API_KEY:-}
+      LAYA_LOG_LEVEL: ${LAYA_LOG_LEVEL:-info}
+    volumes:
+      - laya-models:/home/laya/.cache/huggingface
+    init: true
+    # Comes back after a crash, a reboot, or Docker restarting — the "always
+    # up" part. `docker compose down` or `stop` is what turns it off.
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os, urllib.request; urllib.request.urlopen('http://127.0.0.1:' + os.environ['LAYA_PORT'] + '/health', timeout=4)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      # The first start downloads the checkpoint before it answers.
+      start_period: 10m
+      start_interval: 2s
+
+volumes:
+  laya-models:
