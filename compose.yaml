@@ -107,6 +107,20 @@ services:
     init: true
     restart: unless-stopped
 
+  # One local port for the game to reach everything (see Caddyfile).
+  bridge:
+    image: caddy:2.10-alpine
+    ports:
+      - "127.0.0.1:${BRIDGE_PORT:-7870}:7870"
+    environment:
+      OLLAMA_UPSTREAM: ${OLLAMA_UPSTREAM:-host.docker.internal:11434}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-gemma4:latest}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+
 volumes:
   laya-models:
   art-models:

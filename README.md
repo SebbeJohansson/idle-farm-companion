@@ -9,6 +9,7 @@ checks) grows out of it later.
 | --- | --- | --- | --- |
 | [Laya](https://github.com/NandhaKishorM/laya) | Decides: scores generated biomes (fits its mood? cozy? safe?) | Docker Desktop via WSL, CPU | `http://localhost:8000` |
 | [Ollama](https://ollama.com) + Gemma 4 | Writes: generates biome JSON | Natively on Windows, GPU | `http://<windows host>:11434` |
+| Bridge (Caddy) | One port for the game: `/ollama`, `/laya`, `/art`, `/status` | Docker via WSL | `http://127.0.0.1:7870` |
 | [stable-diffusion.cpp](https://github.com/leejet/stable-diffusion.cpp) + SDXL + [pixel-art-xl](https://huggingface.co/nerijs/pixel-art-xl) | Draws: pixel-art sprites (Automatic1111 API, `/sdapi/v1/txt2img`) | Docker via WSL, GPU | `http://localhost:7860` |
 
 ## Laya
@@ -61,6 +62,19 @@ draw named things (wheat came out as a signpost).
 
 Licenses: SDXL and the LCM LoRA are CreativeML OpenRAIL++-M, pixel-art-xl
 CreativeML OpenRAIL-M — output can be used in a game.
+
+## Bridge
+
+`bridge` (Caddy, `127.0.0.1:7870`) puts every service behind one local
+port, so the **downloaded desktop app** can use them without the game's dev
+server: `/ollama/*` (Ollama on the host, via `host.docker.internal`),
+`/laya/*`, `/art/*`, and `/status` (which model to use). Only the game's own
+origins may call it (`tauri://localhost`, `tauri.localhost`, the dev server);
+any other website gets 403, so a page open in your browser can't use your
+local AI. It strips the services' own CORS headers (stable-diffusion.cpp
+sends `*`, and two Allow-Origin headers make browsers refuse the answer)
+and the Origin header (Ollama refuses origins it doesn't know). Settings:
+`BRIDGE_PORT`, `OLLAMA_UPSTREAM`, `OLLAMA_MODEL` in `.env`.
 
 ## Ollama (Windows)
 

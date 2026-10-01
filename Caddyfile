@@ -1,0 +1,78 @@
+# The bridge (digger-plan.md, "Companion"): one local port for the game to
+# reach every AI service, so the downloaded desktop app works without the
+# game's dev server.
+#
+#   /ollama/*  → Ollama on the host (it runs natively, for the GPU)
+#   /laya/*    → Laya
+#   /art/*     → stable-diffusion.cpp
+#   /status    → which model to use, and that this is the bridge
+#
+# Only the game's own origins may call it, so a website open in your
+# browser can't use your local AI. The Origin header is dropped before
+# forwarding: Ollama refuses origins it doesn't know.
+{
+	admin off
+	auto_https off
+}
+
+:7870 {
+	# route keeps the order below (Caddy otherwise runs handle before respond).
+	route {
+		@game header_regexp Origin ^(tauri://localhost|https?://tauri\.localhost|http://localhost:17910|http://127\.0\.0\.1:17910)$
+		@foreign {
+			header Origin *
+			not header_regexp Origin ^(tauri://localhost|https?://tauri\.localhost|http://localhost:17910|http://127\.0\.0\.1:17910)$
+		}
+		respond @foreign "origin not allowed" 403
+
+		header @game Access-Control-Allow-Origin {http.request.header.Origin}
+		header @game Vary Origin
+		@preflight method OPTIONS
+		handle @preflight {
+			header Access-Control-Allow-Methods "GET, POST, OPTIONS"
+			header Access-Control-Allow-Headers "content-type"
+			header Access-Control-Max-Age "600"
+			respond 204
+		}
+
+		handle /status {
+			header Content-Type application/json
+			respond `{"bridge":true,"model":"{$OLLAMA_MODEL}"}`
+		}
+		handle_path /ollama/* {
+			reverse_proxy {$OLLAMA_UPSTREAM} {
+				header_up -Origin
+				# The bridge decides CORS; a service's own (sd.cpp sends *) would
+				# give browsers two Allow-Origin headers, which they reject.
+				header_down -Access-Control-Allow-Origin
+				header_down -Access-Control-Allow-Credentials
+				header_down -Access-Control-Allow-Headers
+				header_down -Access-Control-Allow-Methods
+				header_up Host localhost
+			}
+		}
+		handle_path /laya/* {
+			reverse_proxy laya:8000 {
+				header_up -Origin
+				# The bridge decides CORS; a service's own (sd.cpp sends *) would
+				# give browsers two Allow-Origin headers, which they reject.
+				header_down -Access-Control-Allow-Origin
+				header_down -Access-Control-Allow-Credentials
+				header_down -Access-Control-Allow-Headers
+				header_down -Access-Control-Allow-Methods
+			}
+		}
+		handle_path /art/* {
+			reverse_proxy art:7860 {
+				header_up -Origin
+				# The bridge decides CORS; a service's own (sd.cpp sends *) would
+				# give browsers two Allow-Origin headers, which they reject.
+				header_down -Access-Control-Allow-Origin
+				header_down -Access-Control-Allow-Credentials
+				header_down -Access-Control-Allow-Headers
+				header_down -Access-Control-Allow-Methods
+			}
+		}
+		respond 404
+	}
+}
