@@ -51,8 +51,11 @@ services:
       start_period: 10m
       start_interval: 2s
 
-  # Fetches the image model into its volume on first start; later starts
-  # find it there and exit at once.
+  # Fetches the image models into the volume on first start; later starts
+  # find them there and exit at once (~7.5 GB the first time).
+  #   SDXL base 1.0 (CreativeML OpenRAIL++-M) and its fp16-safe VAE
+  #   pixel-art-xl LoRA by nerijs (CreativeML OpenRAIL-M) — the style
+  #   LCM-LoRA for SDXL (OpenRAIL++) — 8 steps instead of 25+
   art-models:
     image: curlimages/curl:8.11.1
     user: root
@@ -60,13 +63,17 @@ services:
     command:
       - |
         set -e
-        if [ -s "/models/$$ART_MODEL_FILE" ]; then echo "model present: $$ART_MODEL_FILE"; exit 0; fi
-        echo "downloading $$ART_MODEL_URL"
-        curl -fL --retry 3 -o "/models/$$ART_MODEL_FILE.part" "$$ART_MODEL_URL"
-        mv "/models/$$ART_MODEL_FILE.part" "/models/$$ART_MODEL_FILE"
-    environment:
-      ART_MODEL_URL: ${ART_MODEL_URL:-https://huggingface.co/PublicPrompts/All-In-One-Pixel-Model/resolve/main/Public-Prompts-Pixel-Model.ckpt}
-      ART_MODEL_FILE: ${ART_MODEL_FILE:-Public-Prompts-Pixel-Model.ckpt}
+        mkdir -p /models/loras
+        fetch() {
+          if [ -s "/models/$$1" ]; then echo "present: $$1"; return; fi
+          echo "downloading $$1"
+          curl -fL --retry 3 -o "/models/$$1.part" "$$2"
+          mv "/models/$$1.part" "/models/$$1"
+        }
+        fetch sd_xl_base_1.0.safetensors https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0/resolve/main/sd_xl_base_1.0.safetensors
+        fetch sdxl-vae-fp16-fix.safetensors https://huggingface.co/madebyollin/sdxl-vae-fp16-fix/resolve/main/sdxl_vae.safetensors
+        fetch loras/pixel-art-xl.safetensors https://huggingface.co/nerijs/pixel-art-xl/resolve/main/pixel-art-xl.safetensors
+        fetch loras/lcm-sdxl.safetensors https://huggingface.co/latent-consistency/lcm-lora-sdxl/resolve/main/pytorch_lora_weights.safetensors
     volumes:
       - art-models:/models
 
@@ -79,7 +86,10 @@ services:
     # Swap `-cuda` for `-vulkan` if CUDA doesn't work on a GPU.
     image: ghcr.io/leejet/stable-diffusion.cpp:master-cuda@sha256:bc12de387c5def38f4bb826912d8c8a1d3d7c7c2cb2ccbe2423280aa50a0a636
     entrypoint: ["/sd-server"]
-    command: ["-m", "/models/${ART_MODEL_FILE:-Public-Prompts-Pixel-Model.ckpt}", "-l", "0.0.0.0", "--listen-port", "7860"]
+    # SDXL's own VAE overflows in fp16 (black images); the fp16-fix VAE
+    # doesn't. LoRAs are picked per request (the game sends them, see
+    # idle-farm's app/art-style.ts) from --lora-model-dir.
+    command: ["-m", "/models/sd_xl_base_1.0.safetensors", "--vae", "/models/sdxl-vae-fp16-fix.safetensors", "--lora-model-dir", "/models/loras", "-l", "0.0.0.0", "--listen-port", "7860"]
     ports:
       - "127.0.0.1:${ART_PORT:-7860}:7860"
     volumes:

@@ -9,7 +9,7 @@ checks) grows out of it later.
 | --- | --- | --- | --- |
 | [Laya](https://github.com/NandhaKishorM/laya) | Decides: scores generated biomes (fits its mood? cozy? safe?) | Docker Desktop via WSL, CPU | `http://localhost:8000` |
 | [Ollama](https://ollama.com) + Gemma 4 | Writes: generates biome JSON | Natively on Windows, GPU | `http://<windows host>:11434` |
-| [stable-diffusion.cpp](https://github.com/leejet/stable-diffusion.cpp) + [All-In-One-Pixel-Model](https://huggingface.co/PublicPrompts/All-In-One-Pixel-Model) | Draws: pixel-art sprites (Automatic1111 API, `/sdapi/v1/txt2img`) | Docker via WSL, GPU | `http://localhost:7860` |
+| [stable-diffusion.cpp](https://github.com/leejet/stable-diffusion.cpp) + SDXL + [pixel-art-xl](https://huggingface.co/nerijs/pixel-art-xl) | Draws: pixel-art sprites (Automatic1111 API, `/sdapi/v1/txt2img`) | Docker via WSL, GPU | `http://localhost:7860` |
 
 ## Laya
 
@@ -42,8 +42,11 @@ Windows' loopback, which WSL can't reach.
 ## Art (sprites)
 
 `docker compose up -d` starts it with Laya. On first start `art-models`
-downloads the image model (~2 GB) into a volume; `art` then loads it onto
-the GPU (~2 GB VRAM) and serves on `localhost:7860`.
+downloads ~7.5 GB into a volume — SDXL base 1.0, its fp16-safe VAE, the
+pixel-art-xl LoRA (style) and the LCM LoRA (8 steps instead of 25+) — and
+`art` loads SDXL onto the GPU (~6.6 GB VRAM) and serves on `localhost:7860`.
+LoRAs are chosen per request: the game sends them in the API's `lora`
+field (this server ignores `<lora:…>` tags in prompts).
 
 It's stable-diffusion.cpp rather than ComfyUI on purpose: current PyTorch
 builds no longer support Pascal GPUs (GTX 10-series), and ComfyUI needs
@@ -52,11 +55,12 @@ them fine. GPU access needs Docker Desktop's NVIDIA support (a quick check:
 `docker run --rm --gpus all ubuntu nvidia-smi`). If the CUDA image doesn't
 work on a card, switch the image tag to `master-vulkan`.
 
-The model is set by `ART_MODEL_URL`/`ART_MODEL_FILE` (any SD 1.5 checkpoint).
-The default, PublicPrompts' All-In-One-Pixel-Model (CreativeML OpenRAIL-M),
-has two styles: `pixelsprite` for objects and `16bitscene` for scenes.
+Measured on a GTX 1080 Ti: ~26 s per 768×768 image (LCM, 8 steps); 1024 px
+~45 s. An SD 1.5 pixel-art model was tried first: 12 s, but it couldn't
+draw named things (wheat came out as a signpost).
 
-Measured on a GTX 1080 Ti: ~11 s per 512×512 image at 20 steps.
+Licenses: SDXL and the LCM LoRA are CreativeML OpenRAIL++-M, pixel-art-xl
+CreativeML OpenRAIL-M — output can be used in a game.
 
 ## Ollama (Windows)
 
