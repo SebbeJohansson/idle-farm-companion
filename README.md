@@ -96,3 +96,9 @@ Runs outside WSL for GPU speed. For WSL to reach it:
    ```
 
 idle-game finds it that way on its own; set `OLLAMA_URL` to override.
+
+## License
+
+This repo's setup files (compose, Caddyfile, docs) are [MIT](LICENSE). The
+services and models it downloads keep their own licenses: Laya, Ollama,
+Gemma, stable-diffusion.cpp, SDXL and the LoRAs (see Art above).
